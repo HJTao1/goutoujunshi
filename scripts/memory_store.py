@@ -73,7 +73,14 @@ def connect(create: bool = False) -> sqlite3.Connection:
     if not target.exists() and not create:
         raise MemoryErrorWithCode("NOT_INITIALIZED", "尚未启用长期记忆")
     if create:
-        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Windows: mode is not just a permission bitmask there. Python 3.13 turns
+        # mode=0o700 into a DACL that grants the user SID only, which locks out
+        # restricted tokens (a sandboxed process cannot even list the directory it
+        # just created). Keep the 0700 hardening on POSIX, skip it on Windows.
+        if os.name == "nt":
+            target.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         try:
             target.parent.chmod(0o700)
         except OSError:
